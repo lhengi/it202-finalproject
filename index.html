@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html>
+<!--
+    create a responsive web app
+    with affordable housing information in chicago and crime data
+
+    Home page:
+        Add Favorite Park:
+        Can enter add comments about housing location and can add comments and photo
+        ! This uses indexDB so each address is primery key, with comments and img stored
+
+
+    Map Page:
+        Crime HeatMap with markers on parks
+    
+    Favorite Park:
+        Display the park user has added
+
+    Weather:
+        Get and display user's local weather data
+        
+
+    
+
+    Useful resources---
+    Crime: https://data.cityofchicago.org/Public-Safety/Crimes-One-year-prior-to-present/x2n5-8w5q
+
+    Parks:
+    https://data.cityofchicago.org/api/views/eix4-gf83/rows.json
+
+    Google Map marker
+    https://developers.google.com/maps/documentation/javascript/heatmaplayer
+ -->
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width">
+  	<meta name="google-signin-client_id" content="455879692718-31a814ua0ch6tal2errkrtf4976ckq1h.apps.googleusercontent.com">
+
+	<title>Safe Park</title>
+	<link rel="manifest" href="./manifest.json">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T"
+	 crossorigin="anonymous">
+	
+	<link rel="stylesheet" href="https://unpkg.com/material-components-web@0.40.0/dist/material-components-web.min.css" />
+	<link href="style.css" rel="stylesheet" type="text/css" />
+	<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <style>
+		.content {
+			display: none;
+			margin: 1em;
+		}
+        #map {
+        height: 100%;
+        width: 100%;
+      }
+        html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+	</style>
+</head>
+
+<body>
+	<!-- top nav bar -->
+	<header class="mdc-top-app-bar">
+		<div class="mdc-top-app-bar__row">
+			<section class="mdc-top-app-bar__section mdc-top-app-bar__section--align-start">
+				<a href="#" class="material-icons mdc-top-app-bar__navigation-icon">menu</a>
+				<span class="mdc-top-app-bar__title">Safe Park</span>
+			</section>
+		</div>
+	</header>
+
+	<!-- the navigation drawer -->
+	<aside class="mdc-drawer mdc-drawer--modal" data-mdc-auto-init="MDCDrawer">
+		<div class="mdc-drawer__header">
+			<h3 class="mdc-drawer__title">Mail</h3>
+			<h6 class="mdc-drawer__subtitle">email@material.io</h6>
+		</div>
+		<div class="mdc-drawer__content">
+			<nav class="mdc-list">
+				<a class="mdc-list-item mdc-list-item--activated" href="#addContent" tabindex="0" aria-selected="true"><i class="material-icons mdc-list-item__graphic" aria-hidden="true">home</i>Home</a>
+
+                <a class="mdc-list-item" href="#mapContent" tabindex="0" aria-selected="true"><i class="material-icons mdc-list-item__graphic" aria-hidden="true">map</i>Park</a>
+
+
+                <a class="mdc-list-item" href="#customContent" tabindex="0" aria-selected="true"><i class="material-icons mdc-list-item__graphic" aria-hidden="true">info</i>Add Favorite</a>
+
+                <a class="mdc-list-item" href="#weatherContent" tabindex="0" aria-selected="true"><i class="material-icons mdc-list-item__graphic" aria-hidden="true">wb_sunny</i>Local Weather</a>
+				
+			</nav>
+		</div>
+	</aside>
+	
+      
+
+<div class="mdc-drawer-scrim"></div>
+<div id="contentArea" style="height:100%; width:100%;">
+    <div class="mdc-top-app-bar--fixed-adjust"></div>
+
+    
+    
+
+    <div id ="addContent" class="content">
+        <h3 class="mdc-typography--headline3">Add Your Favorite Park</h3>
+
+        <br>
+
+            <input type="text" class="form-control" id="park" placeholder="Enter a Park Name">
+            <br>
+            <textarea id="comment" class="form-control" placeholder="Enter a comment about this park"></textarea>
+            <br>
+            
+            <button id="savePark" class="btn btn-primary">save</button>
+
+        <br>
+    </div>
+
+    <div id="mapContent" class="content" style="height:80%; width:100%;">
+        <p> Park Locations and Crime Heatmaps</p>
+        <div id="map" style="height:100%; width:100%;"></map>
+        </div>
+
+    </div>
+        
+    <div id="customContent" class="content list-group">
+        <p> You don't have any park saved as favorite! </p>
+        
+        
+    </div>
+
+    <div id="weatherContent" class="content">
+
+        <p>Weather </p>
+    </div>
+
+    
+
+
+</div> 
+
+<div class="card template" id="cardTemp" style="width: 30rem;">
+    <div class="card-body">
+        <h5 class="card-title">Card title</h5>
+        <h6 class="card-subtitle mb-2 text-muted">Card subtitle</h6>
+        <p class="card-text whereLocate">whereLocate</p>
+    </div>
+</div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+	<script src="https://unpkg.com/material-components-web@0.40.0/dist/material-components-web.min.js"></script>
+    <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
+
+<script>
+
+    var db = new Dexie("parks_database");
+        db.version(1).stores({
+            parks:'++id,park,comment'
+        });
+
+    function displayParks()
+    {
+         $("#customContent").empty();
+         db.parks.each(function(note){
+             var p = $("<p>");
+
+            p.attr("data-id",note.id);
+            p.addClass("list_note");
+            p.addClass("list-group-item");
+            p.addClass("list-group-item-action");
+            p.text(note.park +" : " + note.comment);
+            $("#customContent").append(p);
+         });
+         
+    }
+    
+    $(document).ready(function() {
+        $("#cardTemp").hide();
+        hideScreens();
+        window.mdc.autoInit();
+        const drawer = $("aside")[0].MDCDrawer;
+
+        // open the drawer when the menu icon is clicked
+        $(".mdc-top-app-bar__navigation-icon").on("click", function(){
+            drawer.open = true;
+        });
+
+        
+
+        $("#addContent").show();
+        
+
+        function hideScreens() {
+          $(".content").hide();
+          
+        }
+
+        $(".mdc-list-item").on("click", function(){
+          hideScreens();
+          var target = $(this).attr("href");
+          $(target).show();
+          if(target == "#customContent")
+          {
+              displayParks();
+          }
+
+          if(target == "#weatherContent")
+          {
+              navigator.geolocation.getCurrentPosition(function(position) {
+                  
+                  var weatherAPI = "https://fcc-weather-api.glitch.me/api/current?lat="+position.coords.latitude+"&lon="+position.coords.longitude;
+                  console.log(weatherAPI);
+                  $.get(weatherAPI,function(response){
+
+                       console.log(response);
+                        $("#weatherContent").empty();
+                        console.log(response.name);
+                        console.log(response.weather[0].description);
+                        console.log(response.main.temp);
+
+                        var clone = $(".template").clone();
+                        // update values
+                        clone.find(".card-title").text(response.name);
+
+                        clone.find(".card-subtitle").text(response.weather[0].description);
+                        clone.find(".whereLocate").text("Temperature: " + parseFloat(response.main.temp)*1.8+32);
+                        
+                        
+                        clone.removeClass("template");
+                        // insert into DOM
+                        clone.removeAttr("id");
+                        clone.show();
+                        $("#weatherContent").append(clone);
+                      
+                  });
+                
+                });
+          }
+
+        });
+
+        $("#savePark").on("click",function(){
+            var subject = $("#park").val();
+            var content = $("#comment").val();
+            db.parks.put({park:subject,comment:content});
+            //console.log("Subject: ", subject," content: ",content);
+        });
+
+    });
+
+
+
+
+var parkEndpoint = "https://data.cityofchicago.org/api/views/eix4-gf83/rows.json";
+var parkMarkers = [];
+var parklocations = {};
+var parkSet = new Set([]);
+
+
+function loadParks(){
+    $.get(parkEndpoint,function(response){
+
+        $.each(response.data,function(i,value){
+            var parkName = value[10] ;
+            
+
+            var stringCord = value[11].substring(7,value[11].length-1).split(" ");
+
+            var cord= {"lat":parseFloat(stringCord[1]),"lng":parseFloat(stringCord[0])};
+            
+            if(!parkSet.has(parkName))
+            {
+                var marker = new google.maps.Marker({
+                        position: cord,
+                        map: map});
+                var infoContent = "<div class='card-body'>"+
+			        "<h5 class='card-title'>"+"Park Name : "+parkName+"</h5>";
+                var infowindow = new google.maps.InfoWindow({content:infoContent});
+                
+
+                marker.addListener('click',function(){
+                    infowindow.open(map,marker);
+                });
+                parkSet.add(parkName);
+                parkMarkers.push(marker);
+            }
+        });
+        
+    });
+
+    
+
+}
+
+
+var crimeEndpoints = "https://data.cityofchicago.org/resource/x2n5-8w5q.json?$limit=100000";
+
+var map;
+var heatmap;
+var chicago = {lat: 41.8781, lng: -87.6298};
+var geocoder;
+function initMap() {
+    
+    map = new google.maps.Map(document.getElementById('map'), {
+    center: chicago,
+    zoom: 13
+    });
+    geocoder = new google.maps.Geocoder;
+
+    setMapNull();
+    loadParks();
+
+    
+
+    fetch(crimeEndpoints).then(function(response){
+
+        response.json().then(function(result){
+            
+            let heatpoints = result.map(entry =>{
+                if(entry.hasOwnProperty("latitude") && entry.hasOwnProperty("longitude"))
+                {
+                    return {location: new google.maps.LatLng(parseFloat(entry.latitude),parseFloat(entry.longitude)), weight: 5};
+                }
+                return {location: new google.maps.LatLng(0.0,0.0),weight:0};
+                
+            });
+
+            
+            heatmap = new google.maps.visualization.HeatmapLayer({
+                data: heatpoints,
+                map: map,
+                opacity: 0.85,
+                radius: 20,
+                maxIntensity: 270
+            
+            });
+            
+        });
+
+    });
+}
+
+    function setMapNull(){
+            for (var i = 0; i < parkMarkers.length; i++) {
+                parkMarkers[i].setMap(null);
+            }
+        }
+
+</script>
+
+  
+  
+	<!-- <script src="script.js"></script> -->
+  
+  
+  <!-- putting the Google library scripts at the top level due to use across screens -->
+   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBcoqcxlIFUx3L4BlLrz0KR4O65436fKsY&libraries=visualization&callback=initMap"
+    async defer></script>
+  <script src="https://apis.google.com/js/platform.js"></script>
+  
+  <script src="https://apis.google.com/js/api.js"></script>
+
+  <script>
+  	if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js')
+  .then(function(reg) {
+    // registration worked
+    console.log('Registration succeeded. Scope is ' + reg.scope);
+  }).catch(function(error) {
+    // registration failed
+    console.log('Registration failed with ' + error);
+  });
+}
+  </script>
+
+
+</body>
+
+</html>
